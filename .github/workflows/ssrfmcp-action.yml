@@ -1,0 +1,174 @@
+# Reusable GitHub Action for ssrfmcp.
+#
+# Consumers add this to their workflow:
+#
+#   jobs:
+#     ssrf-scan:
+#       runs-on: ubuntu-latest
+#       permissions:
+#         contents: read
+#         pull-requests: write   # to comment findings on the PR
+#       steps:
+#         - uses: cognis-digital/ssrfmcp@main
+#           with:
+#             target: http://127.0.0.1:8731/mcp/call
+#             tool: fetch
+#             arg: url
+#             fail-on: high
+#             comment-pr: "true"
+#           env:
+#             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#
+# DEFENSIVE / authorized-use only: the action passes --i-have-authorization on
+# the caller's behalf. Only point `target` at an MCP server you own or are
+# explicitly authorized to test.
+name: ssrfmcp
+description: >-
+  Consent-based SSRF probe for MCP fetch tools. Runs ssrfmcp in CI, posts
+  findings on the PR, and fails the job on a severity threshold.
+author: Cognis Digital
+branding:
+  icon: shield
+  color: purple
+
+inputs:
+  target:
+    description: "URL of the MCP fetch tool to probe (you must be authorized)."
+    required: false
+    default: ""
+  tool:
+    description: "MCP tool name the target exposes."
+    required: false
+    default: "fetch"
+  arg:
+    description: "Argument name carrying the URL."
+    required: false
+    default: "url"
+  fail-on:
+    description: "Fail the job if a finding is at/above this severity (critical|high|medium|low|info)."
+    required: false
+    default: "high"
+  ai:
+    description: "Set 'true' to also run the pluggable Cognis AI backend (env COGNIS_AI_*). Default off / deterministic."
+    required: false
+    default: "false"
+  comment-pr:
+    description: "Set 'true' to comment the findings table on the PR via gh api."
+    required: false
+    default: "true"
+  demo:
+    description: "Set 'true' to probe the bundled local mock target instead of `target` (for trying the action out)."
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Check out ssrfmcp
+      uses: actions/checkout@v4
+      with:
+        repository: cognis-digital/ssrfmcp
+        ref: main
+        path: .ssrfmcp-action
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Run ssrfmcp scan
+      id: scan
+      shell: bash
+      working-directory: .ssrfmcp-action
+      env:
+        SSRFMCP_TARGET: ${{ inputs.target }}
+        SSRFMCP_TOOL: ${{ inputs.tool }}
+        SSRFMCP_ARG: ${{ inputs.arg }}
+        SSRFMCP_FAIL_ON: ${{ inputs.fail-on }}
+        SSRFMCP_AI: ${{ inputs.ai }}
+        SSRFMCP_DEMO: ${{ inputs.demo }}
+      run: |
+        set +e
+        AI_FLAG=""
+        if [ "$SSRFMCP_AI" = "true" ]; then AI_FLAG="--ai"; fi
+
+        if [ "$SSRFMCP_DEMO" = "true" ]; then
+          SUB=(demo)
+        else
+          if [ -z "$SSRFMCP_TARGET" ]; then
+            echo "::error::no `target` supplied and demo=false — nothing to scan."
+            exit 2
+          fi
+          SUB=(scan --target "$SSRFMCP_TARGET" --tool "$SSRFMCP_TOOL" --arg "$SSRFMCP_ARG")
+        fi
+
+        # Human-readable + machine-readable artifacts.
+        python -m ssrfmcp "${SUB[@]}" --i-have-authorization $AI_FLAG \
+          --format table --fail-on "$SSRFMCP_FAIL_ON" | tee scan.txt
+        TABLE_RC=${PIPESTATUS[0]}
+
+        python -m ssrfmcp "${SUB[@]}" --i-have-authorization $AI_FLAG \
+          --format json --fail-on "$SSRFMCP_FAIL_ON" > scan.json
+        python -m ssrfmcp "${SUB[@]}" --i-have-authorization $AI_FLAG \
+          --format sarif --fail-on "$SSRFMCP_FAIL_ON" > scan.sarif || true
+        python -m ssrfmcp "${SUB[@]}" --i-have-authorization $AI_FLAG \
+          --format badge --fail-on "$SSRFMCP_FAIL_ON" > badge.json || true
+        python -m ssrfmcp "${SUB[@]}" --i-have-authorization $AI_FLAG \
+          --format html --fail-on "$SSRFMCP_FAIL_ON" > scan.html || true
+
+        echo "rc=$TABLE_RC" >> "$GITHUB_OUTPUT"
+
+    - name: Upload report artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ssrfmcp-report
+        path: |
+          .ssrfmcp-action/scan.txt
+          .ssrfmcp-action/scan.json
+          .ssrfmcp-action/scan.sarif
+          .ssrfmcp-action/scan.html
+          .ssrfmcp-action/badge.json
+
+    - name: Comment findings on the PR
+      if: ${{ inputs.comment-pr == 'true' && github.event_name == 'pull_request' }}
+      shell: bash
+      working-directory: .ssrfmcp-action
+      env:
+        GH_TOKEN: ${{ env.GITHUB_TOKEN }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      run: |
+        if [ -z "${GH_TOKEN:-}" ]; then
+          echo "::warning::GITHUB_TOKEN not set; skipping PR comment."
+          exit 0
+        fi
+        {
+          echo "## 🛡️ ssrfmcp SSRF scan"
+          echo
+          echo '```'
+          cat scan.txt
+          echo '```'
+          echo
+          echo "<sub>Posted by the Cognis ssrfmcp GitHub Action — DEFENSIVE / authorized-use only.</sub>"
+        } > comment.md
+        # Post via gh api (escapes body as JSON).
+        gh api \
+          --method POST \
+          -H "Accept: application/vnd.github+json" \
+          "/repos/${REPO}/issues/${PR_NUMBER}/comments" \
+          -f body@comment.md || \
+        gh api --method POST -H "Accept: application/vnd.github+json" \
+          "/repos/${REPO}/issues/${PR_NUMBER}/comments" \
+          -f "body=$(cat comment.md)"
+
+    - name: Enforce fail-on threshold
+      shell: bash
+      working-directory: .ssrfmcp-action
+      run: |
+        RC="${{ steps.scan.outputs.rc }}"
+        if [ "$RC" != "0" ]; then
+          echo "::error::ssrfmcp found findings at or above '${{ inputs.fail-on }}'."
+          exit 1
+        fi
+        echo "ssrfmcp: no findings at or above '${{ inputs.fail-on }}'."
