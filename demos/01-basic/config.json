@@ -1,0 +1,23 @@
+{
+  "scenario": "01-basic",
+  "description": "Probe the bundled mock vulnerable MCP fetch tool for SSRF.",
+  "command": ["python", "-m", "ssrfmcp", "demo", "--i-have-authorization", "--format", "json"],
+  "target": {
+    "kind": "mcp-http-fetch-tool",
+    "endpoint": "http://127.0.0.1:<ephemeral>/mcp/call",
+    "tool": "fetch",
+    "arg": "url",
+    "note": "Stood up automatically by `ssrfmcp demo`; loopback only."
+  },
+  "authorization": "required (--i-have-authorization)",
+  "expected": {
+    "vulnerable_count_min": 6,
+    "top_severity": "critical",
+    "must_include_payloads": [
+      "aws-imds-root",
+      "aws-imds-creds",
+      "file-etc-passwd"
+    ],
+    "exit_code_with_fail_on_high": 1
+  }
+}
