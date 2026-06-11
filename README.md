@@ -30,13 +30,25 @@ explicitly authorized in writing to test, and in compliance with applicable law.
 1. **Canary** — stands up a local, loopback-only `http.server` with a unique
    per-run token. If the target fetches the canary URL, that proves a *blind*
    SSRF callback and the hit is attributed to the exact payload.
-2. **Payloads** — submits a curated set of SSRF probes to the target's fetch
-   tool: AWS/GCP/Azure metadata endpoints, `http://localhost` / `127.0.0.1`,
-   link-local, `file://`, decimal/octal IP bypass encodings, and the canary URL.
+2. **Payloads** — submits a curated, deep set of SSRF probes to the target's
+   fetch tool:
+   - **Cloud metadata:** AWS IMDSv1 (root / IAM creds / user-data), GCP
+     (metadata + default service-account OAuth token), Azure (IMDS + Managed
+     Identity token), Alibaba (`100.100.100.200`), OpenStack, DigitalOcean.
+   - **Internal reach:** `http://localhost`, `127.0.0.1`, IPv6 `[::1]`, common
+     admin ports, link-local (v4 + AWS IMDS over IPv6 `fd00:ec2::254`).
+   - **`file://`** local disclosure (POSIX + Windows).
+   - **Alternate schemes:** `gopher://` (Redis smuggling), `dict://`
+     (memcached), `ftp://`.
+   - **IP obfuscation / blocklist bypass:** decimal, octal, hex, dotted-hex,
+     short-form `127.1`, ideographic-dot host trick, `userinfo@` confusion.
+   - **Redirect-based** reach to internal endpoints, and a **DNS-rebinding
+     precursor** canary that proves the target re-resolves attacker hostnames.
 3. **Two-oracle detection** — fuses (a) response-body fingerprints of internal
-   endpoints (reflected SSRF — IMDS markers, IAM credential fields,
-   `root:x:0:0`, …) with (b) the canary callback log (blind SSRF), then assigns
-   a severity and a 0–100 risk score.
+   endpoints (reflected SSRF — IMDS markers, IAM/OAuth credential fields,
+   `root:x:0:0`, …) with (b) the loopback canary callback log (blind SSRF),
+   then assigns a severity, a **CWE** (CWE-918 SSRF / CWE-22 file / CWE-350
+   rebind), and a 0–100 risk score.
 
 No payload is ever sent anywhere except the supplied target. The canary listens
 only on loopback. Standard library only — no pip dependencies.
@@ -55,7 +67,9 @@ pip install -e ".[dev]"
 ssrfmcp --version
 ssrfmcp demo --i-have-authorization                 # probe the bundled mock target
 ssrfmcp demo --i-have-authorization --format json   # machine-readable
-ssrfmcp demo --i-have-authorization --format sarif   # GitHub code-scanning
+ssrfmcp demo --i-have-authorization --format sarif  # GitHub code-scanning
+ssrfmcp demo --i-have-authorization --format html > report.html   # shareable report
+ssrfmcp demo --i-have-authorization --format badge > badge.json   # shields.io endpoint
 
 # Against your own MCP fetch tool:
 ssrfmcp scan --i-have-authorization \
@@ -79,12 +93,80 @@ needed.)
 
 ## Output formats
 
-- **Table** (default) — human-readable terminal summary with per-payload verdict
-- **JSON** — machine-readable findings + risk score for pipelines
-- **SARIF** — drops into GitHub code-scanning / IDE problem panes
+- **Table** (default) — human-readable terminal summary with per-payload
+  verdict, CWE, and technique
+- **JSON** — machine-readable findings + risk score + CWE for pipelines
+- **SARIF** — drops into GitHub code-scanning / IDE problem panes (CWE-tagged)
+- **HTML** (`--format html`) — a clean, self-contained report (no external
+  assets, no JS, no network) you can attach to a ticket or email
+- **Badge** (`--format badge`) — a [shields.io endpoint](https://shields.io/endpoint)
+  JSON `{schemaVersion,label,message,color}` so you can show a live status badge
 
 `--fail-on <severity>` makes the process exit non-zero when a vulnerable finding
 is at or above the given severity (default `high`), so it gates CI cleanly.
+
+### Status badge
+
+Publish `ssrfmcp --format badge` output somewhere reachable (e.g. a Pages URL or
+gist), then point shields.io at it:
+
+```markdown
+![ssrfmcp](https://img.shields.io/endpoint?url=https://example.com/ssrfmcp-badge.json)
+```
+
+## Pluggable AI mode (opt-in, default OFF)
+
+`ssrfmcp` is **byte-for-byte deterministic by default** — with `--ai` absent, no
+AI backend is even constructed. Pass `--ai` to *additionally* run the pluggable
+**Cognis AI backend** over the probe transcript and merge any **novel** findings
+(tagged `source="ai"`, `novel=true`) that the deterministic rules might miss
+(timing/error-leak oracles, unusual accepted schemes, redirect behavior, …).
+AI findings are deduped against rule findings by `(CWE, technique)`.
+
+It runs entirely against your **local** OpenAI-compatible fleet — nothing leaves
+the box. Configure via environment variables (off until one is set):
+
+```bash
+export COGNIS_AI_BACKEND=uncensored-fleet   # or: cognis-code
+# or point directly:
+export COGNIS_AI_ENDPOINT=http://127.0.0.1:8774/v1
+export COGNIS_AI_MODEL=Josiefied-Qwen3-8B-abliterated
+
+ssrfmcp demo --i-have-authorization --ai --format json
+```
+
+If `--ai` is given but the backend is unreachable/unconfigured, `ssrfmcp` prints
+a clear note to stderr and **continues with the deterministic rule findings**
+(it never crashes, and the exit code still reflects the rule findings).
+
+## Use in CI — reusable GitHub Action
+
+`ssrfmcp` ships a composite GitHub Action. Drop this into a workflow to scan a
+target in CI, comment the findings on the PR, and fail on a severity threshold:
+
+```yaml
+jobs:
+  ssrf-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write        # to comment findings on the PR
+    steps:
+      - uses: cognis-digital/ssrfmcp@main
+        with:
+          target: http://127.0.0.1:8731/mcp/call
+          tool: fetch
+          arg: url
+          fail-on: high
+          comment-pr: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Just trying it out? Set `demo: "true"` to probe the bundled mock target instead
+of a `target`. The action uploads `scan.json`, `scan.sarif`, `scan.html`, and
+`badge.json` as build artifacts. **DEFENSIVE / authorized-use only** — only
+point `target` at an MCP server you own or are explicitly authorized to test.
 
 ## Built-in demo scenario
 

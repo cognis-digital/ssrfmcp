@@ -42,6 +42,7 @@ def _scan_capability(arguments: Dict[str, Any]) -> Dict[str, Any]:
         tool=arguments.get("tool", "fetch"),
         arg=arguments.get("arg", "url"),
         timeout=float(arguments.get("timeout", 8.0)),
+        ai=bool(arguments.get("ai", False)),
     )
     return report.to_dict()
 
@@ -72,6 +73,9 @@ except Exception:  # pragma: no cover - stdlib fallback
             "tool": {"type": "string", "default": "fetch"},
             "arg": {"type": "string", "default": "url"},
             "timeout": {"type": "number", "default": 8.0},
+            "ai": {"type": "boolean", "default": False,
+                   "description": "Opt-in: also run the pluggable Cognis AI "
+                                  "backend (env COGNIS_AI_*). Default off."},
         },
         "required": ["target", "i_have_authorization"],
         "additionalProperties": False,

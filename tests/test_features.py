@@ -108,10 +108,12 @@ class TestAIMode(unittest.TestCase):
         self.assertEqual(r1.ai_count, 0)
         # No source=="ai" results when AI is off.
         self.assertFalse(any(x.source == "ai" for x in r1.results))
-        # Deterministic verdict set across runs.
+        # Deterministic verdict set across runs. The canary/rebind payload IDs
+        # embed a per-run random token by design, so compare on the stable
+        # (kind, technique) fingerprint instead of the token-bearing id.
         self.assertEqual(
-            sorted(x.payload_id for x in r1.results if x.vulnerable),
-            sorted(x.payload_id for x in r2.results if x.vulnerable),
+            sorted((x.kind, x.technique) for x in r1.results if x.vulnerable),
+            sorted((x.kind, x.technique) for x in r2.results if x.vulnerable),
         )
 
     def test_ai_unreachable_backend_still_returns_rules(self):
