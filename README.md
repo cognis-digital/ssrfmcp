@@ -18,6 +18,44 @@ metadata endpoints (`169.254.169.254`), loopback admin services, or read local
 files via `file://`. `ssrfmcp` probes a target you control for exactly these
 weaknesses and reports which payloads got through, with severity.
 
+## Usage — step by step
+
+`ssrfmcp` is a **consent-based, defensive** SSRF probe for MCP servers that fetch
+URLs. It refuses to run against a `--target` unless you confirm authorization.
+
+1. **Install** (editable from a clone, or from the wheel):
+   ```bash
+   pip install -e .
+   # provides the `ssrfmcp` console script
+   ```
+2. **Try it safely first** against the bundled local mock (loopback only — still
+   requires the authorization flag):
+   ```bash
+   ssrfmcp demo --i-have-authorization
+   ```
+3. **Probe a real target you own / are authorized to test.** Point `--target` at
+   the MCP tool endpoint; `--tool`/`--arg` name the fetch tool and its URL arg:
+   ```bash
+   ssrfmcp scan --target http://127.0.0.1:8080/mcp \
+     --tool fetch --arg url --i-have-authorization
+   ```
+   (Run `ssrfmcp mock` in another shell to serve the local vulnerable endpoint,
+   or `ssrfmcp mcp` to expose ssrfmcp itself as an MCP server capability.)
+4. **Read / use the output.** Default `--format table` prints a risk score and
+   per-payload verdicts; switch to `json`, `sarif`, `html`, or `badge` for
+   tooling. The opt-in `--ai` flag (env `COGNIS_AI_*`) merges novel findings and
+   degrades gracefully if the backend is unreachable:
+   ```bash
+   ssrfmcp scan --target http://127.0.0.1:8080/mcp --i-have-authorization \
+     --format json > ssrf.json
+   ```
+5. **Gate CI** with `--fail-on` (`critical|high|medium|low|info`); the exit code
+   is non-zero when a vulnerable finding at/above that severity is present:
+   ```bash
+   ssrfmcp scan --target http://127.0.0.1:8080/mcp --i-have-authorization \
+     --format sarif --fail-on high > ssrf.sarif
+   ```
+
 ## Responsible / authorized use
 
 This is **dual-use security software**. It runs **only** against the
