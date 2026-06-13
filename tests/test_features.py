@@ -22,7 +22,6 @@ from ssrfmcp.core import (
     ScanReport,
     _builtin_payloads,
     merge_ai_findings,
-    probe_target,
     run_ai_over_transcript,
     scan,
 )
