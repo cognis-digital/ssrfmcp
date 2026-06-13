@@ -3,7 +3,7 @@
 > Part of the **[Cognis Neural Suite](https://github.com/cognis-digital)** by [Cognis Digital](https://cognis.digital)
 > Cognis Open Collaboration License (COCL) v1.0 · domain: `ai-security`
 
-[![PyPI](https://img.shields.io/pypi/v/cognis-ssrfmcp.svg)](https://pypi.org/project/cognis-ssrfmcp/)
+[![install](https://img.shields.io/badge/install-git%2B%20%C2%B7%20pipx%20%C2%B7%20uv-6b46c1.svg)](#install--every-way-every-platform)
 [![CI](https://github.com/cognis-digital/ssrfmcp/actions/workflows/ci.yml/badge.svg)](https://github.com/cognis-digital/ssrfmcp/actions)
 [![License: COCL 1.0](https://img.shields.io/badge/License-COCL%201.0-2b6cb0.svg)](LICENSE)
 [![Suite](https://img.shields.io/badge/Cognis-Neural%20Suite-6b46c1.svg)](https://github.com/cognis-digital)
@@ -17,6 +17,12 @@ guard, an attacker (or a prompt-injected agent) can make the server reach cloud
 metadata endpoints (`169.254.169.254`), loopback admin services, or read local
 files via `file://`. `ssrfmcp` probes a target you control for exactly these
 weaknesses and reports which payloads got through, with severity.
+
+<!-- cognis:layman:start -->
+## What is this?
+
+ssrfmcp is a security testing tool for AI agent servers that have a "fetch a URL" capability. It checks whether that fetch capability is properly locked down, or whether an attacker could trick the server into reading internal credentials, cloud metadata, or private files it was never meant to reach. You run it against your own server, tell it you have permission to test, and it produces a clear report showing exactly which dangerous URL patterns got through and how serious each finding is. It is aimed at developers and security teams building or deploying AI agent infrastructure.
+<!-- cognis:layman:end -->
 
 ## Responsible / authorized use
 
@@ -53,10 +59,46 @@ explicitly authorized in writing to test, and in compliance with applicable law.
 No payload is ever sent anywhere except the supplied target. The canary listens
 only on loopback. Standard library only — no pip dependencies.
 
+<!-- cognis:install:start -->
+## Install
+
+`ssrfmcp` is source-available (not published to PyPI) — every method below installs
+straight from GitHub. Pick whichever you prefer; the one-line scripts auto-detect
+the best tool available on your machine.
+
+**One-liner (Linux / macOS):**
+```sh
+curl -fsSL https://raw.githubusercontent.com/cognis-digital/ssrfmcp/HEAD/install.sh | sh
+```
+
+**One-liner (Windows PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/cognis-digital/ssrfmcp/HEAD/install.ps1 | iex
+```
+
+**Or install manually — any one of:**
+```sh
+pipx install "git+https://github.com/cognis-digital/ssrfmcp.git"     # isolated (recommended)
+uv tool install "git+https://github.com/cognis-digital/ssrfmcp.git"  # uv
+pip install "git+https://github.com/cognis-digital/ssrfmcp.git"      # pip
+```
+
+**From source:**
+```sh
+git clone https://github.com/cognis-digital/ssrfmcp.git
+cd ssrfmcp && pip install .
+```
+
+Then run:
+```sh
+ssrfmcp --help
+```
+<!-- cognis:install:end -->
+
 ## Install
 
 ```bash
-pip install cognis-ssrfmcp
+pip install "git+https://github.com/cognis-digital/ssrfmcp.git"
 # or, from this repo:
 pip install -e ".[dev]"
 ```
@@ -180,6 +222,46 @@ can call it as a scoped, consent-gated capability (the MCP tool requires
 `i_have_authorization=true`, mirroring the CLI flag).
 
 **Sibling tools in `ai-security`:** [`mcpharden`](https://github.com/cognis-digital/mcpharden), [`aegis`](https://github.com/cognis-digital/aegis), [`promptmirror`](https://github.com/cognis-digital/promptmirror), [`adversa`](https://github.com/cognis-digital/adversa), [`guardpost`](https://github.com/cognis-digital/guardpost), [`ragshield`](https://github.com/cognis-digital/ragshield)
+
+<a name="verification"></a>
+## Verification
+
+[![tests](https://img.shields.io/badge/tests-46%20passing-2ea44f.svg)](AUDIT.md)
+
+Every push is verified end-to-end. Latest audit (2026-06-13):
+
+```text
+tests        : 46 passed, 0 failed, 0 errored
+compile      : all modules parse
+cli          : ssrfmcp 0.2.0
+package      : ssrfmcp
+```
+
+<details><summary>CLI surface (<code>--help</code>)</summary>
+
+```text
+usage: ssrfmcp [-h] [--version] {scan,demo,mock,mcp} ...
+
+Consent-based SSRF probe harness for MCP servers that fetch URLs. DEFENSIVE /
+authorized-use only.
+
+positional arguments:
+  {scan,demo,mock,mcp}
+    scan                Probe a target MCP fetch tool for SSRF.
+    demo                Run against a bundled local mock vulnerable endpoint.
+    mock                Serve the local mock vulnerable MCP fetch tool.
+    mcp                 Expose ssrfmcp as an MCP server capability.
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+```
+</details>
+
+Full machine-readable results: [`AUDIT.md`](AUDIT.md) · regenerate with `python -m ssrfmcp --help` + `pytest -q`.
+
+<div align="right"><a href="#top">↑ back to top</a></div>
+
 
 ## License
 

@@ -12,7 +12,6 @@ from ssrfmcp.core import (
     Canary,
     Payload,
     ScanReport,
-    SEVERITY_ORDER,
     _builtin_payloads,
     _evaluate,
     probe_target,
