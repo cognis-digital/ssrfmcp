@@ -219,6 +219,12 @@ can call it as a scoped, consent-gated capability (the MCP tool requires
 
 **Sibling tools in `ai-security`:** [`mcpharden`](https://github.com/cognis-digital/mcpharden), [`aegis`](https://github.com/cognis-digital/aegis), [`promptmirror`](https://github.com/cognis-digital/promptmirror), [`adversa`](https://github.com/cognis-digital/adversa), [`guardpost`](https://github.com/cognis-digital/guardpost), [`ragshield`](https://github.com/cognis-digital/ragshield)
 
+## Interoperability
+
+`{}` composes with the 300+ tool Cognis suite — JSON in/out and a shared
+OpenAI-compatible `/v1` backbone. See **[INTEROP.md](INTEROP.md)** for the
+suite map, composition patterns, and reference stacks.
+
 ## License
 
 Source-available under the **Cognis Open Collaboration License (COCL) v1.0** —
