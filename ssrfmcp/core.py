@@ -401,9 +401,15 @@ class Canary:
     """A loopback-only HTTP listener that records inbound SSRF callbacks."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 0) -> None:
-        self._httpd = ThreadingHTTPServer((host, port), _CanaryHandler)
+        try:
+            self._httpd = ThreadingHTTPServer((host, port), _CanaryHandler)
+        except (OSError, OverflowError) as exc:
+            raise OSError(
+                f"canary listener could not bind to {host}:{port}: {exc}"
+            ) from exc
         self._httpd.canary_hits = []  # type: ignore[attr-defined]
-        self.host, self.port = self._httpd.server_address[0], self._httpd.server_address[1]
+        self.host = self._httpd.server_address[0]
+        self.port = self._httpd.server_address[1]
         self._thread: Optional[threading.Thread] = None
 
     @property
@@ -680,6 +686,9 @@ def probe_target(
     if payloads is None:
         payloads = _builtin_payloads(canary_base)
 
+    if not payloads:
+        return ScanReport(target=target, canary_base=canary_base, results=[])
+
     # Map each callback payload to its own token for attribution.
     tokens: Dict[str, str] = {}  # payload_id -> token
     for p in payloads:
@@ -894,6 +903,14 @@ def scan(
         )
     if not target or not isinstance(target, str):
         raise ValueError("a non-empty --target must be supplied")
+    if timeout <= 0:
+        raise ValueError(
+            f"timeout must be a positive number (got {timeout})"
+        )
+    if delay < 0:
+        raise ValueError(
+            f"delay must be >= 0 (got {delay})"
+        )
 
     own_fetcher = fetcher or http_mcp_fetcher(
         target, tool=tool, arg=arg, timeout=timeout)

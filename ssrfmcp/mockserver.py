@@ -78,8 +78,14 @@ def _fixture_for(url: str) -> Optional[str]:
 class _MockHandler(BaseHTTPRequestHandler):
     server_version = "vuln-mcp-fetch/0.1"
 
+    _MAX_BODY = 1 * 1024 * 1024  # 1 MB guard against runaway reads
+
     def do_POST(self) -> None:  # noqa: N802
-        length = int(self.headers.get("Content-Length", "0") or "0")
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+        except (ValueError, TypeError):
+            length = 0
+        length = max(0, min(length, self._MAX_BODY))
         raw = self.rfile.read(length) if length else b"{}"
         try:
             payload = json.loads(raw.decode("utf-8", "replace"))

@@ -381,10 +381,27 @@ def _ai_note(report: ScanReport, fmt: str) -> None:
               file=sys.stderr)
 
 
+def _validate_numeric_args(args: argparse.Namespace) -> Optional[str]:
+    """Return an error string if timeout/delay are out of range, else None."""
+    if args.timeout <= 0:
+        return (
+            f"--timeout must be a positive number (got {args.timeout})"
+        )
+    if args.delay < 0:
+        return (
+            f"--delay must be >= 0 (got {args.delay})"
+        )
+    return None
+
+
 def _run_scan(args: argparse.Namespace) -> int:
     if not args.authorized:
         print(_AUTH_BANNER, file=sys.stderr)
         return 3
+    err = _validate_numeric_args(args)
+    if err:
+        print(f"error: {err}", file=sys.stderr)
+        return 2
     try:
         report = scan(
             args.target, authorized=True,
@@ -396,6 +413,9 @@ def _run_scan(args: argparse.Namespace) -> int:
     except (TargetError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except Exception as exc:  # pragma: no cover
+        print(f"error: unexpected failure: {exc}", file=sys.stderr)
+        return 2
     _ai_note(report, args.format)
     _emit(report, args.format)
     return _fail_code(report, args.fail_on)
@@ -405,18 +425,31 @@ def _run_demo(args: argparse.Namespace) -> int:
     if not args.authorized:
         print(_AUTH_BANNER, file=sys.stderr)
         return 3
+    err = _validate_numeric_args(args)
+    if err:
+        print(f"error: {err}", file=sys.stderr)
+        return 2
     from .mockserver import MockVulnerableServer
-    with MockVulnerableServer() as mock:
-        if args.format == "table":
-            print(f"[demo] mock vulnerable MCP fetch tool at {mock.url}\n",
-                  file=sys.stderr)
-        report = scan(
-            mock.url, authorized=True,
-            use_canary=not args.no_canary,
-            tool=args.tool, arg=args.arg,
-            timeout=args.timeout, delay=args.delay,
-            ai=args.ai,
-        )
+    try:
+        with MockVulnerableServer() as mock:
+            if args.format == "table":
+                print(
+                    f"[demo] mock vulnerable MCP fetch tool at {mock.url}\n",
+                    file=sys.stderr,
+                )
+            report = scan(
+                mock.url, authorized=True,
+                use_canary=not args.no_canary,
+                tool=args.tool, arg=args.arg,
+                timeout=args.timeout, delay=args.delay,
+                ai=args.ai,
+            )
+    except (TargetError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # pragma: no cover
+        print(f"error: unexpected failure: {exc}", file=sys.stderr)
+        return 2
     _ai_note(report, args.format)
     _emit(report, args.format)
     return _fail_code(report, args.fail_on)
