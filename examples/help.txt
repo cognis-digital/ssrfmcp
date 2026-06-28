@@ -1,0 +1,17 @@
+$ ssrfmcp-emit --help
+
+usage: ssrfmcp [-h] [--version] {scan,demo,mock,mcp} ...
+
+Consent-based SSRF probe harness for MCP servers that fetch URLs. DEFENSIVE /
+authorized-use only.
+
+positional arguments:
+  {scan,demo,mock,mcp}
+    scan                Probe a target MCP fetch tool for SSRF.
+    demo                Run against a bundled local mock vulnerable endpoint.
+    mock                Serve the local mock vulnerable MCP fetch tool.
+    mcp                 Expose ssrfmcp as an MCP server capability.
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit

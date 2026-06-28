@@ -18,6 +18,57 @@ metadata endpoints (`169.254.169.254`), loopback admin services, or read local
 files via `file://`. `ssrfmcp` probes a target you control for exactly these
 weaknesses and reports which payloads got through, with severity.
 
+
+<!-- cognis:example:start -->
+## 🔎 Example output
+
+Real, reproducible output from the tool — runs offline:
+
+```console
+$ ssrfmcp-emit --version
+ssrfmcp 0.2.0
+```
+
+```console
+$ ssrfmcp-emit --help
+usage: ssrfmcp [-h] [--version] {scan,demo,mock,mcp} ...
+
+Consent-based SSRF probe harness for MCP servers that fetch URLs. DEFENSIVE /
+authorized-use only.
+
+positional arguments:
+  {scan,demo,mock,mcp}
+    scan                Probe a target MCP fetch tool for SSRF.
+    demo                Run against a bundled local mock vulnerable endpoint.
+    mock                Serve the local mock vulnerable MCP fetch tool.
+    mcp                 Expose ssrfmcp as an MCP server capability.
+
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+```
+
+> Blocks above are real `ssrfmcp` output — reproduce them from a clone.
+
+**Sample result format** _(illustrative values — run on your own data for real findings):_
+
+```
+{
+"Findings": [
+    {
+        "id": "123456",
+        "title": "Suspicious DNS Query",
+        "description": "A suspicious DNS query was detected from IP 192.168.1.100",
+        "severity": "medium",
+        "created_by": "John Doe",
+        "created_at": "2023-02-15T14:30:00Z"
+    }
+]
+}
+```
+
+<!-- cognis:example:end -->
+
 ## Usage — step by step
 
 `ssrfmcp` is a **consent-based, defensive** SSRF probe for MCP servers that fetch

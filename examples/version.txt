@@ -1,0 +1,3 @@
+$ ssrfmcp-emit --version
+
+ssrfmcp 0.2.0
